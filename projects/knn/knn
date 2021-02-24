@@ -1,0 +1,165 @@
+# This is the python implementation of knn for this text mining project
+
+import os
+import time
+import string
+import numpy as np
+import pandas as pd
+import re
+import matplotlib.pyplot as plt
+import nltk
+import sklearn
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.metrics.pairwise import cosine_distances
+from sklearn.metrics.pairwise import cosine_similarity
+from math import sqrt
+
+from nltk.stem import PorterStemmer
+from nltk.corpus import stopwords
+
+# set environment
+os.chdir(r'C:\Users\wmwms\OneDrive - George Mason University\Academics\2020Fall\CS584\HW1')
+os.getcwd()
+
+# load data
+train_data = pd.read_csv(r"data\train.txt", sep = '\t', nrows = 14999)
+
+test_data = pd.read_csv(r"data\test.txt", sep = '\t', nrows = 15000)
+test_data["sentiment"] = 1
+#test_data.shape
+#test_data.head
+
+# create vector
+vect = CountVectorizer()
+vect.fit([train_data.loc[0][1]])
+#print("Vocabulary content: \n {}".format(vect.vocabulary_))
+
+bag_of_words = vect.transform([train_data.loc[0][1]])
+#print(bag_of_words)
+#vect.get_feature_names()
+
+##################################################################################
+
+# create copies of datasets
+train_count = train_data.shape[0]
+train_count
+
+test_count = test_data.shape[0]
+test_count
+
+X_train = train_data["review"].copy()
+X_test = test_data["review"].copy()
+#X_train
+#X_test
+y_train = train_data["sentiment"].copy()
+y_test = test_data["sentiment"].copy()
+#y_train
+#y_test
+
+##################################################################################
+
+# text pre-processing
+nltk.download('stopwords')
+stop = stopwords.words('english')
+
+X_train = X_train.str.replace('[^\w\s]','')
+X_train = X_train.apply(lambda x: " ".join(x for x in x.split() if x not in stop))
+X_train = X_train.apply(lambda x: " ".join(x.lower() for x in x.split()))
+stemmer = PorterStemmer()
+X_train = X_train.apply(lambda x: " ".join([stemmer.stem(word) for word in x.split()]))
+
+tfidf = TfidfVectorizer(max_features=500, lowercase=True, analyzer='word', stop_words= 'english',ngram_range=(1,1))
+
+X_train = tfidf.fit_transform(X_train)
+#dat_tfIdf
+#bag_words = CountVectorizer(max_features=500, lowercase=True, ngram_range=(1,1),analyzer = "word")
+#X_train = bag_words.fit_transform(X_train)
+
+# X_test
+X_test = X_test.str.replace('[^\w\s]','')
+X_test = X_test.apply(lambda x: " ".join(x for x in x.split() if x not in stop))
+X_test = X_test.apply(lambda x: " ".join(x.lower() for x in x.split()))
+stemmer1 = PorterStemmer()
+X_test = X_test.apply(lambda x: " ".join([stemmer1.stem(word) for word in x.split()]))
+
+tfidf1 = TfidfVectorizer(max_features=500, lowercase=True, analyzer='word', stop_words= 'english',ngram_range=(1,1))
+
+X_test = tfidf1.fit_transform(X_test)
+#dat_tfIdf1
+#bag_words1 = CountVectorizer(max_features=500, lowercase=True, ngram_range=(1,1),analyzer = "word")
+#X_test = bag_words1.fit_transform(X_test)
+
+##################################################################################
+
+# pre-processing
+new_train_data = pd.DataFrame(X_train)
+new_train_data["sentiment"] = (y_train)
+#new_train_data
+row_num = len(new_train_data.index)
+
+# for the whole dataset
+new_test_data = pd.DataFrame(X_test)
+new_test_data["sentiment"] = (y_test)
+#new_test_data
+test_row_num = len(new_test_data.index)
+test_row_num
+#new_test_data.iloc[0][0]
+
+#new_test_data.iloc[0,1]
+#new_test_data.iloc[1,0]
+#new_test_data.iloc[1,1]
+
+##################################################################################
+
+# KNN algorithm
+# set k value
+k = 30
+
+# loop through new_test_data
+start_time = time.time()
+
+for j in range(test_row_num):
+    distances = []
+    distances = cosine_distances(new_test_data.iloc[j,0], X_train)
+    #store distances
+    distances = np.column_stack((distances[0], y_train))
+    #distances.sort(key = lambda tup:tup[0])
+    #sort distances and get nearest k neighbors
+    distances = distances[distances[:,0].argsort()]
+    neighbors = list()
+    for i in range(1,k+1):
+        neighbors.append(distances[i])
+
+    # classification prediction
+    sum = 0
+    for n in range(k):
+        sum = sum + neighbors[n][1]
+
+    if sum >= 0:
+        new_test_data.iloc[j, 1] = 1
+    else:
+        new_test_data.iloc[j, 1] = -1
+
+print("--- %s seconds ---" % (time.time() - start_time))
+
+##################################################################################
+
+# prediction
+prediction = new_test_data.iloc[:, 1]
+prediction
+
+# output
+sub = pd.DataFrame(prediction)
+sub = sub[0:]
+submission = open("submission.txt","w")
+submission.write(sub.to_string(index = False))
+submission.close()
+
+##################################################################################
